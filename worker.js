@@ -1097,6 +1097,15 @@ function makeBot(env) {
   return { tg, sb, loadAdmins, handleUpdate };
 }
 
+/* ================= مهمة أسبوعية: إبقاء Supabase نشطاً ================= */
+
+async function keepAlive(env) {
+  const { tg, sbx } = makeApi(env);
+  const r = await sbx('GET', 'nodes', 'select=id&limit=1');
+  const me = await tg('getMe');
+  return { supabase_ok: r.ok, supabase_status: r.status, telegram_ok: !!me.ok, time: new Date().toISOString() };
+}
+
 /* ================= نقطة الدخول ================= */
 
 export default {
@@ -1117,6 +1126,12 @@ export default {
       return new Response(JSON.stringify(r) + '\n' + hook, { headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
     }
 
+    // فحص الاتصال بـ Supabase وتلجرام: /ping?key=WEBHOOK_SECRET
+    if (url.pathname === '/ping') {
+      if (!secret || url.searchParams.get('key') !== secret) return new Response('wrong key', { status: 403 });
+      return new Response(JSON.stringify(await keepAlive(env), null, 1), { headers: { 'Content-Type': 'application/json' } });
+    }
+
     if (url.pathname === '/webhook' && request.method === 'POST') {
       if (!secret || request.headers.get('X-Telegram-Bot-Api-Secret-Token') !== secret) {
         return new Response('forbidden', { status: 403 });
@@ -1129,5 +1144,10 @@ export default {
     }
 
     return new Response('OK');
+  },
+
+  // يُستدعى تلقائياً حسب جدول crons في wrangler.jsonc
+  async scheduled(event, env, ctx) {
+    ctx.waitUntil(keepAlive(env).then((r) => console.log('keep-alive:', JSON.stringify(r))));
   },
 };
