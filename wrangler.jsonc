@@ -1,0 +1,5 @@
+{
+  "name": "library-bot",
+  "main": "worker.js",
+  "compatibility_date": "2025-09-01"
+}
